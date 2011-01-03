@@ -6,18 +6,23 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
+#include <signal.h>
 #include <sys/types.h>
 #include <sys/ipc.h>
 #include <sys/msg.h>
 
 struct light_server {
-  char name[16];
+  char name[32];
   void(*on_handler)(int lightid, int clientid);
   void(*off_handler)(int lightid, int clientid);
   void(*brightness_handler)(int lightid, int clientid, float brightness);
   void(*rgb_handler)(int lightid, int clientid, float r, float g, float b);
   void(*hsi_handler)(int lightid, int clientid, float h, float s, float i);
 };
+
+static struct light_server light_servers[256];
+static int unused_light_server_id = 0;
 
 void default_on_handler(int lightid, int clientid) {
   /* does nothing */
@@ -26,19 +31,23 @@ void default_off_handler(int lightid, int clientid) {
   /* does nothing */
 }
 void default_brightness_handler(int lightid, int clientid, float brightness) {
-  /* does nothing */
+  /* by default, turns on/off based on brightness > 0.5 */
+  if(brightness > 0.5) {
+    light_servers[lightid].on_handler(lightid, clientid);
+  } else {
+    light_servers[lightid].off_handler(lightid, clientid);
+  }
 }
 void default_rgb_handler(int lightid, int clientid, float r, float g, float b) {
-  /* does nothing */
+  /* by default, uses red channel for brightness */
+  light_servers[lightid].brightness_handler(lightid, clientid, r);
 }
 void default_hsi_handler(int lightid, int clientid, float h, float s, float i) {
+  /* by default, just runs rgb handler */
   float angle = 2 * M_PI * h;
   printf("should implement default hsi handler (in lights.c) to convert to rgb\n");
   exit(1);
 }
-
-static struct light_server light_servers[256];
-static int unused_light_server_id = 0;
 
 static int light_msqid; /* the msg queue for the lights in this process */
 
@@ -51,12 +60,7 @@ void lights_sigint_handler(int sig) {
 /* initializes the message queue unique to this process, and changes
    the sigint handler for the process. */
 int squidlights_light_initialize(void) {
-  key_t key;
-  if((key = ftok(SQ_LIGHT_SERVER_MSG_NAME, getpid())) == -1) {
-    perror("lights.c, initialization ftok");
-    exit(1);
-  }
-  if((light_msqid = msgget(key, 0666 | IPC_CREAT)) == -1) {
+  if((light_msqid = msgget(IPC_PRIVATE, 0666 | IPC_CREAT)) == -1) {
     perror("lights.c, initialization msgget");
     exit(1);
   }
@@ -70,8 +74,6 @@ int squidlights_light_initialize(void) {
 static int server_msqid; /* the msg queue to squidlights */
 
 int squidlights_light_connect(char* name) {
-  key_t key;
-
   if(unused_light_server_id == 256) {
     printf("The dumb programmer didn't support more than 256 lights per process!\n");
     return SQ_CONNECTION_ERROR;
@@ -89,19 +91,15 @@ int squidlights_light_connect(char* name) {
 
   /* connect to server */
   /* it's ok this may get called many times */
-  if((key = ftok(SQ_SERVER_MSG_NAME_LIGHTS, 22)) == -1) {
-    perror("lights.c, squidlights ftok");
-    return SQ_CONNECTION_ERROR;
-  }
 
-  if((server_msqid = msgget(key, 0666)) == -1) {
+  if((server_msqid = msgget(SQ_SERVER_MSG_ID, 0666)) == -1) {
     perror("server not running? msgget");
     return SQ_CONNECTION_ERROR;
   }
 
   /* attach light to server */
   struct light_init_msg msg;
-  msg.mtype = SQ_SET_NAME;
+  msg.mtype = SQ_LIGHT_SET_NAME;
   msg.lightid = lightid;
   msg.msqid = light_msqid;
   strcpy(msg.name, name);
@@ -139,9 +137,11 @@ void squidlights_light_run(void) {
   struct light_brightness_msg * lbm_buf;
 
   lights_keep_running = 1;
+  
+  printf("running...\n");
 
   while(lights_keep_running) {
-    if(msgrcv(server_msqid, &buf, 256, 0, 0) == -1) {
+    if(msgrcv(light_msqid, &buf, 256, 0, 0) == -1) {
       perror("lights.c, run msgrcv");
       printf("server disconnected?");
       lights_keep_running = 0;
@@ -164,6 +164,10 @@ void squidlights_light_run(void) {
 	  break;
 	case SQ_LIGHT_HSI :
 	  break;
+	case SQ_DIE :
+	  printf("Server-forced death.\n");
+	  lights_keep_running = 0;
+	  break;
 	default :
 	  printf("ignoring unknown message type %ld\n", buf.mtype);
 	}
@@ -178,8 +182,4 @@ void squidlights_light_run(void) {
   if(msgctl(light_msqid, IPC_RMID, NULL) == -1) {
     perror("msgctl");
   }
-}
-
-int main(void) {
-  return 0;
 }

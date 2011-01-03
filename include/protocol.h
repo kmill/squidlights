@@ -16,17 +16,16 @@
 #define SQ_UNDEFINED_LIGHT -2203
 
 /*** Protocol ***/
-#define SQ_SERVER_MSG_NAME_CLIENTS "squidlights_clientside"
-#define SQ_SERVER_MSG_NAME_LIGHTS "squidlights_lightside"
-#define SQ_CLIENT_SERVER_MSG_NAME "squidlights_client"
-#define SQ_LIGHT_SERVER_MSG_NAME "squidlights_light"
+#define SQ_SERVER_MSG_ID 222220
 
-#define SQ_SET_NAME 0 /* this message must be sent only once */
-#define SQ_LIGHT_ON 1
-#define SQ_LIGHT_OFF 2
-#define SQ_LIGHT_BRIGHTNESS 3
-#define SQ_LIGHT_RGB 4
-#define SQ_LIGHT_HSI 5
+#define SQ_LIGHT_SET_NAME 1 /* this message must be sent only once */
+#define SQ_LIGHT_ON 2
+#define SQ_LIGHT_OFF 3
+#define SQ_LIGHT_BRIGHTNESS 4
+#define SQ_LIGHT_RGB 5
+#define SQ_LIGHT_HSI 6
+#define SQ_DIE 7 /* sent by the server to kill everything */
+#define SQ_CLIENT_SET_NAME 8 /* again, only once */
 
 struct generic_msgbuf {
   long mtype;
@@ -39,7 +38,7 @@ struct light_init_msg {
   long mtype;
   int lightid;
   int msqid;
-  char name[32];
+  char name[100]; /* name is actually 32 bytes.  padding for safety! */
 };
 
 struct light_brightness_msg {
