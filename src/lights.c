@@ -26,6 +26,7 @@ static int unused_light_server_id = 0;
 
 void default_on_handler(int lightid, int clientid) {
   /* does nothing */
+  printf("default\n");
 }
 void default_off_handler(int lightid, int clientid) {
   /* does nothing */
@@ -103,12 +104,13 @@ int squidlights_light_connect(char* name) {
   msg.lightid = lightid;
   msg.msqid = light_msqid;
   strcpy(msg.name, name);
-  if(msgsnd(server_msqid, &msg, 256, 0) == -1) {
+  if(msgsnd(server_msqid, &msg, SIZEOF_MSG(struct light_init_msg), 0) == -1) {
     perror("lights.c, squidlights msgsnd");
     return SQ_CONNECTION_ERROR;
   }
 
   // and we're done!
+  return lightid;
 }
 
 /* make sure to not modify result */
@@ -116,20 +118,20 @@ char* squidlights_light_getname(int lightid) {
   return light_servers[lightid].name;
 }
 
-int squidlights_light_add_on(int lightid, void(*on_handler)(int lightid, int clientid)) {
-  light_servers[lightid].on_handler = on_handler;
+int squidlights_light_add_on(int lightid, void(*new_on_handler)(int lightid, int clientid)) {
+  light_servers[lightid].on_handler = new_on_handler;
 }
-int squidlights_light_add_off(int lightid, void(*off_handler)(int lightid, int clientid)) {
-  light_servers[lightid].off_handler = off_handler;
+int squidlights_light_add_off(int lightid, void(*new_off_handler)(int lightid, int clientid)) {
+  light_servers[lightid].off_handler = new_off_handler;
 }
-int squidlights_light_add_brightness(int lightid, void(*brightness_handler)(int lightid, int clientid, float brightness)) {
-  light_servers[lightid].brightness_handler = brightness_handler;
+int squidlights_light_add_brightness(int lightid, void(*new_brightness_handler)(int lightid, int clientid, float brightness)) {
+  light_servers[lightid].brightness_handler = new_brightness_handler;
 }
-int squidlights_light_add_rgb(int lightid, void(*rgb_handler)(int lightid, int clientid, float r, float g, float b)) {
-  light_servers[lightid].rgb_handler = rgb_handler;
+int squidlights_light_add_rgb(int lightid, void(*new_rgb_handler)(int lightid, int clientid, float r, float g, float b)) {
+  light_servers[lightid].rgb_handler = new_rgb_handler;
 }
-int squidlights_light_add_hsi(int lightid, void(*hsi_handler)(int lightid, int clientid, float h, float s, float i)) {
-  light_servers[lightid].hsi_handler = hsi_handler;
+int squidlights_light_add_hsi(int lightid, void(*new_hsi_handler)(int lightid, int clientid, float h, float s, float i)) {
+  light_servers[lightid].hsi_handler = new_hsi_handler;
 }
 
 void squidlights_light_run(void) {
@@ -141,36 +143,44 @@ void squidlights_light_run(void) {
   printf("running...\n");
 
   while(lights_keep_running) {
-    if(msgrcv(light_msqid, &buf, 256, 0, 0) == -1) {
+    if(msgrcv(light_msqid, &buf, SIZEOF_MSG(struct generic_msgbuf), 0, 0) == -1) {
       perror("lights.c, run msgrcv");
       printf("server disconnected?");
       lights_keep_running = 0;
     } else {
-      if(buf.lightid < 0 || buf.lightid >= unused_light_server_id) {
-	printf("no such light %d\n", buf.lightid);
-      } else {
-	switch(buf.mtype) {
-	case SQ_LIGHT_ON :
+      switch(buf.mtype) {
+      case SQ_LIGHT_ON :
+	if(buf.lightid < 0 || buf.lightid >= unused_light_server_id) {
+	  printf("no such light %d\n", buf.lightid);
+	} else {
 	  light_servers[buf.lightid].on_handler(buf.lightid, buf.clientid);
-	  break;
-	case SQ_LIGHT_OFF :
+	}
+	break;
+      case SQ_LIGHT_OFF :
+	if(buf.lightid < 0 || buf.lightid >= unused_light_server_id) {
+	  printf("no such light %d\n", buf.lightid);
+	} else {
 	  light_servers[buf.lightid].off_handler(buf.lightid, buf.clientid);
-	  break;
-	case SQ_LIGHT_BRIGHTNESS :
+	}
+	break;
+      case SQ_LIGHT_BRIGHTNESS :
+	if(buf.lightid < 0 || buf.lightid >= unused_light_server_id) {
+	  printf("no such light %d\n", buf.lightid);
+	} else {
 	  lbm_buf = (struct light_brightness_msg *) &buf;
 	  light_servers[lbm_buf->lightid].brightness_handler(lbm_buf->lightid, lbm_buf->clientid, lbm_buf->brightness);
-	  break;
-	case SQ_LIGHT_RGB :
-	  break;
-	case SQ_LIGHT_HSI :
-	  break;
-	case SQ_DIE :
-	  printf("Server-forced death.\n");
-	  lights_keep_running = 0;
-	  break;
-	default :
-	  printf("ignoring unknown message type %ld\n", buf.mtype);
 	}
+	break;
+      case SQ_LIGHT_RGB :
+	break;
+      case SQ_LIGHT_HSI :
+	break;
+      case SQ_DIE :
+	printf("Server-forced death.\nbllaaarrrrggghhh!!!\n");
+	lights_keep_running = 0;
+	break;
+      default :
+	printf("ignoring unknown message type %ld\n", buf.mtype);
       }
     }
   }

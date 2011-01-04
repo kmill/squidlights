@@ -27,6 +27,12 @@
 #define SQ_DIE 7 /* sent by the server to kill everything */
 #define SQ_CLIENT_SET_NAME 8 /* again, only once */
 
+#define NUM_LIGHT_SERVERS 256
+#define NUM_CLIENTS 256
+
+/* a macro to compute the size of the data sent for msgrcv/msgsnd */
+#define SIZEOF_MSG(msg_type) (sizeof(msg_type)-sizeof(long))
+
 struct generic_msgbuf {
   long mtype;
   int lightid;
@@ -37,7 +43,7 @@ struct generic_msgbuf {
 struct light_init_msg {
   long mtype;
   int lightid;
-  int msqid;
+  int msqid; /* when sending to clients, this is the "islight" field */
   char name[100]; /* name is actually 32 bytes.  padding for safety! */
 };
 
@@ -66,7 +72,17 @@ struct light_hsi_msg {
   float i;
 };
 
+struct client_init_msg {
+  long mtype;
+  int clientid;
+  int msqid;
+  char name[100];
+};
+
 /*** client functions ***/
+
+/* initializes the light system for this process */
+int squidlights_client_initialize(void);
 
 /* connect to squidlights and register with with identifier "name".
    Returns either when there is an error, or once the connection is
@@ -79,12 +95,19 @@ struct light_hsi_msg {
    * if the name is taken, SQ_NAME_TAKEN is returned. */
 int squidlights_client_connect(char* name);
 
-/* Get a pointer to the list of light names */
-char** squidlights_client_lightnames(int clientid);
+/* Get the name of a light by id.  Empty if no such light. */
+char* squidlights_client_lightname(int lightid);
 
 /* Gets the id of the light with a particular name. Returns -1 if no
    such light. */
-int squidlights_client_getlight(int clientid, char* name);
+int squidlights_client_getlight(char* name);
+
+/* Handles outstanding messages on the queue. Returns -1 if no longer
+   connected. */
+int squidlights_client_process_messages(void);
+
+/* Handles cleaning up the message queue */
+int squidlights_client_quit(void);
 
 /* Send a signals to a particular light by id. brightness, r, g, b, h,
    s, and i are floats in the range [0,1].

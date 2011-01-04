@@ -32,9 +32,9 @@ void light1_off_handler(int lightid, int clientid) {
 
 void print_states(void) {
   if(light0_state) {
-    printf("*\t");
+    printf("0:*\t1:");
   } else {
-    printf(" \t");
+    printf("0: \t1:");
   }
   for(int i = 0; i < light1_brightness; i += 20) {
     printf("+");
@@ -46,14 +46,17 @@ int main(void) {
   squidlights_light_initialize();
   int light0 = squidlights_light_connect("testlight_light0");
   if(light0 == SQ_CONNECTION_ERROR) exit(1);
-  squidlights_light_add_on(light0, light0_on_handler);
-  squidlights_light_add_off(light0, light0_off_handler);
+  printf("light0=%d\n", light0);
+  squidlights_light_add_on(light0, &light0_on_handler);
+  squidlights_light_add_off(light0, &light0_off_handler);
 
   int light1 = squidlights_light_connect("testlight_light1");
   if(light1 == SQ_CONNECTION_ERROR) exit(1);
-  squidlights_light_add_on(light1, light1_on_handler);
-  squidlights_light_add_off(light1, light1_off_handler);
-  squidlights_light_add_brightness(light1, light1_brightness_handler);
+  printf("light1=%d\n", light1);
+  squidlights_light_add_on(light1, &light1_on_handler);
+  squidlights_light_add_off(light1, &light1_off_handler);
+  squidlights_light_add_brightness(light1, &light1_brightness_handler);
   
+  print_states();
   squidlights_light_run();
 }
