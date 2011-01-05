@@ -98,7 +98,7 @@ int squidlights_client_connect(char* name);
 /* Get the name of a light by id.  Empty if no such light. */
 char* squidlights_client_lightname(int lightid);
 
-/* Gets the id of the light with a particular name. Returns -1 if no
+/* Gets the id of the light with a particular name. Returns SQ_UNDEFINED_LIGHT if no
    such light. */
 int squidlights_client_getlight(char* name);
 
@@ -156,5 +156,9 @@ int squidlights_light_add_hsi(int lightid, void(*hsi_handler)(int lightid, int c
 
 /* once set up, just runs the lights */
 void squidlights_light_run(void);
+/* or, do one iteration of light running. returns -1 if should quit */
+int squidlights_lights_handle(void);
+/* and to cleanup when quitting if doing it by iteration */
+void squidlights_lights_cleanup(void);
 
 #endif

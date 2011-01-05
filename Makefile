@@ -1,9 +1,9 @@
 CC=gcc
 LIBS=-lm
-CFLAGS=-O3 -I include -std=gnu99
+CFLAGS=-O3 -Wall -I include -std=gnu99
 TARGETS=
 
-all: lights clients server
+all: lights clients server pd_client
 
 server: src/lights.o src/server.o
 	$(CC) $(LIBS) src/lights.o src/server.o -o build/server
@@ -23,3 +23,10 @@ testclient: src/clients/testclient.o
 
 clean:
 	rm build/*.o || true
+
+pd_client: src/pd_client.c src/lights.o src/clients.o
+	$(CC) $(LIBS) $(CFLAGS) -DPD -W -Wshadow -Wstrict-prototypes -Wno-unused -Wno-parentheses -Wno-switch -o src/pd_client.o -c src/pd_client.c
+	$(CC) $(LIBS) -bundle -undefined suppress -flat_namespace -o build/sqlight.pd_darwin src/pd_client.o src/lights.o src/clients.o
+
+install: pd_client
+	cp build/sqlight.pd_darwin ~/Library/Pd

@@ -113,7 +113,10 @@ void run(void) {
 	  strcpy(lim.name, light_servers[id].name);
 	  for(int i = 0; i < NUM_CLIENTS; i++) {
 	    if(clients[i].isclient) {
-	      msgsnd(clients[i].client_msqid, &lim, SIZEOF_MSG(struct light_init_msg), 0);
+	      if(msgsnd(clients[i].client_msqid, &lim, SIZEOF_MSG(struct light_init_msg), 0) == -1) {
+		printf("lost client %s\n", clients[i].name);
+		clients[i].isclient = 0;
+	      }
 	    }
 	  }
 	}
@@ -124,26 +127,31 @@ void run(void) {
       case SQ_LIGHT_RGB :
       case SQ_LIGHT_HSI :
 	//printf("forwarding...\n");
-	if(!light_servers[buf.lightid].islight) {
-	  printf("not a light\n");
-	}
-	/* change the id to something the light server understands
-	   (and reuse the data structure). */
-	id = buf.lightid;
-	buf.lightid = light_servers[id].lightid;
-	//printf("sending to \"%s\" id=%d lightid=%d\n", light_servers[id].name, id, buf.lightid);
-	if(msgsnd(light_servers[id].light_msqid, &buf, SIZEOF_MSG(struct generic_msgbuf), 0) == -1) {
-	  printf("Lost light %d. Removing...\n", id);
-	  light_servers[id].islight = 0;
-	  printf("telling clients...\n");
-	  struct light_init_msg lim;
-	  lim.mtype = SQ_LIGHT_SET_NAME;
-	  lim.lightid = id;
-	  lim.msqid = 0;
-	  strcpy(lim.name, light_servers[id].name);
-	  for(int i = 0; i < NUM_CLIENTS; i++) {
-	    if(clients[i].isclient) {
-	      msgsnd(clients[i].client_msqid, &lim, SIZEOF_MSG(struct light_init_msg), 0);
+	if(buf.lightid >= 0 && buf.lightid < NUM_LIGHT_SERVERS
+	   && !light_servers[buf.lightid].islight) {
+	  printf("not a light: %d\n", buf.lightid);
+	} else {
+	  /* change the id to something the light server understands
+	     (and reuse the data structure). */
+	  id = buf.lightid;
+	  buf.lightid = light_servers[id].lightid;
+	  //printf("sending to \"%s\" id=%d lightid=%d\n", light_servers[id].name, id, buf.lightid);
+	  if(msgsnd(light_servers[id].light_msqid, &buf, SIZEOF_MSG(struct generic_msgbuf), 0) == -1) {
+	    printf("Lost light %d. Removing...\n", id);
+	    light_servers[id].islight = 0;
+	    printf("telling clients...\n");
+	    struct light_init_msg lim;
+	    lim.mtype = SQ_LIGHT_SET_NAME;
+	    lim.lightid = id;
+	    lim.msqid = 0;
+	    strcpy(lim.name, light_servers[id].name);
+	    for(int i = 0; i < NUM_CLIENTS; i++) {
+	      if(clients[i].isclient) {
+		if(msgsnd(clients[i].client_msqid, &lim, SIZEOF_MSG(struct light_init_msg), 0) == -1) {
+		  printf("lost client %s\n", clients[i].name);
+		  clients[i].isclient = 0;
+		}
+	      }
 	    }
 	  }
 	}
@@ -152,7 +160,7 @@ void run(void) {
 	printf("adding client...\n");
 	id = get_free_client_id();
 	if(id == -1) {
-	  printf("can't.  too many clients already.\n");
+	  printf("can't. too many clients already.\n");
 	} else {
 	  struct client_init_msg * buf2 = (struct client_init_msg *) &buf;
 	  strcpy(clients[id].name, buf2->name);
@@ -179,6 +187,13 @@ void run(void) {
 	  msgsnd(clients[id].client_msqid, &lim, SIZEOF_MSG(struct light_init_msg), 0);
 	  printf(" done\n");
 	}
+	break;
+	
+	//      case SQ_DIE :
+	//	break;
+	
+      default :
+	printf("Unknown message %ld...", buf.mtype);
 	break;
       }
     }

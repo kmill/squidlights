@@ -27,8 +27,9 @@ int server_msqid;
 int squidlights_client_initialize(void) {
   if((client_msqid = msgget(IPC_PRIVATE, 0666 | IPC_CREAT)) == -1) {
     perror("clients.c, initialization msgget");
-    exit(1);
+    return -1;
   }
+  return 0;
 }
 
 static int client_add_light(struct light_init_msg * lim) {
@@ -39,13 +40,14 @@ static int client_add_light(struct light_init_msg * lim) {
   }
   strcpy(light_servers[lim->lightid].name, lim->name);
   light_servers[lim->lightid].islight = lim->msqid;
+  return 0;
 }
 
 // name actually isn't used at the moment...
 int squidlights_client_connect(char* name) {
   struct client_init_msg msg;
   struct light_init_msg lim;
-  char buff[256]; /* for padding, in case of errors with recv */
+  static int nextclientid = 0; /* a hack! I know! should be getting from server */
 
   if((server_msqid = msgget(SQ_SERVER_MSG_ID, 0666)) == -1) {
     perror("server not running? msgget");
@@ -61,22 +63,28 @@ int squidlights_client_connect(char* name) {
     perror("clients.c, squidclient msgsnd");
     return SQ_CONNECTION_ERROR;
   }
+  
+  /* clear what is known about lights */
+  for(int i = 0; i < NUM_LIGHT_SERVERS; i++) {
+    light_servers[i].islight = 0;
+  }
 
   printf("waiting for server to send lights... "); fflush(stdout);
   if(msgrcv(client_msqid, &lim, SIZEOF_MSG(struct light_init_msg), 0, 0) == -1) {
     perror("clients.c, connect1 msgrcv");
-    exit(1);
+    return SQ_CONNECTION_ERROR;
   }
   printf(".");
   while(lim.lightid != -1) {
     client_add_light(&lim);
     if(msgrcv(client_msqid, &lim, SIZEOF_MSG(struct light_init_msg), 0, 0) == -1) {
       perror("clients.c, connect2 msgrcv");
-      exit(1);
+      return SQ_CONNECTION_ERROR;
     }
     printf(".");
   }
   printf(" done\n");
+  return ++nextclientid;
 }
 
 char* squidlights_client_lightname(int lightid) {
@@ -92,7 +100,7 @@ int squidlights_client_getlight(char* name) {
       return i;
     }
   }
-  return -1;
+  return SQ_UNDEFINED_LIGHT;
 }
 
 int squidlights_client_process_messages(void) {
@@ -101,11 +109,13 @@ int squidlights_client_process_messages(void) {
   int ret = msgctl(client_msqid, IPC_STAT, &msq);
   while(ret != -1 && msq.msg_qnum > 0) {
     if(!msgrcv(client_msqid, &buf, SIZEOF_MSG(struct generic_msgbuf), 0, IPC_NOWAIT)) {
-      perror("clients.c process msgrcv"); exit(1);
+      perror("clients.c process msgrcv");
+      return SQ_CONNECTION_ERROR;
     }
     switch(buf.mtype) {
     case SQ_LIGHT_SET_NAME :
       client_add_light((struct light_init_msg *) &buf);
+      break;
     case SQ_DIE :
       return -1;
     default :
@@ -115,8 +125,9 @@ int squidlights_client_process_messages(void) {
   }
   if(ret == -1) {
     perror("clients.c process msgctl");
-    exit(1);
+    return -1;
   }
+  return 0;
 }
 
 int squidlights_client_quit(void) {
@@ -126,7 +137,9 @@ int squidlights_client_quit(void) {
   /* server will detect shutdown of queue */
   if(msgctl(client_msqid, IPC_RMID, NULL) == -1) {
     perror("msgctl");
+    return -1;
   }
+  return 0;
 }
 
 static int send_msg(void* msg, int size) {

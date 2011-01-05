@@ -21,13 +21,16 @@ int main(void) {
       }
     }
   }
+
+  int light0 = squidlights_client_getlight("testlight_light0");
+  int light1 = squidlights_client_getlight("testlight_light1");
   
   int i = 0;
   int ok = 0;
   while(ok != -1) {
     printf(".\n");
-    ok = squidlights_client_light_set(clientid, 0, i++%2==0?0.0:1.0);
-    ok &= squidlights_client_light_set(clientid, 1, (i%5)/5.0);
+    ok = squidlights_client_light_set(clientid, light0, i++%2==0?0.0:1.0);
+    ok &= squidlights_client_light_set(clientid, light1, (i%5)/5.0);
     usleep(200000);
   }
 

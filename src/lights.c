@@ -45,7 +45,7 @@ void default_rgb_handler(int lightid, int clientid, float r, float g, float b) {
 }
 void default_hsi_handler(int lightid, int clientid, float h, float s, float i) {
   /* by default, just runs rgb handler */
-  float angle = 2 * M_PI * h;
+  //float angle = 2 * M_PI * h;
   printf("should implement default hsi handler (in lights.c) to convert to rgb\n");
   exit(1);
 }
@@ -70,6 +70,13 @@ int squidlights_light_initialize(void) {
   sa.sa_handler = lights_sigint_handler;
   sa.sa_flags = 0;
   sigemptyset(&sa.sa_mask);
+
+  if(sigaction(SIGINT, &sa, NULL) == -1) {
+    perror("sigaction (couldn't register ^C handler)");
+    exit(1);
+  }
+  
+  return 0;
 }
 
 static int server_msqid; /* the msg queue to squidlights */
@@ -120,23 +127,92 @@ char* squidlights_light_getname(int lightid) {
 
 int squidlights_light_add_on(int lightid, void(*new_on_handler)(int lightid, int clientid)) {
   light_servers[lightid].on_handler = new_on_handler;
+  return 0;
 }
 int squidlights_light_add_off(int lightid, void(*new_off_handler)(int lightid, int clientid)) {
   light_servers[lightid].off_handler = new_off_handler;
+  return 0;
 }
 int squidlights_light_add_brightness(int lightid, void(*new_brightness_handler)(int lightid, int clientid, float brightness)) {
   light_servers[lightid].brightness_handler = new_brightness_handler;
+  return 0;
 }
 int squidlights_light_add_rgb(int lightid, void(*new_rgb_handler)(int lightid, int clientid, float r, float g, float b)) {
   light_servers[lightid].rgb_handler = new_rgb_handler;
+  return 0;
 }
 int squidlights_light_add_hsi(int lightid, void(*new_hsi_handler)(int lightid, int clientid, float h, float s, float i)) {
   light_servers[lightid].hsi_handler = new_hsi_handler;
+  return 0;
+}
+
+static int squidlights_handle_msg_buf(struct generic_msgbuf * buf) {
+  struct light_brightness_msg * lbm_buf;
+  struct light_rgb_msg * lrm_buf;
+  struct light_hsi_msg * lhm_buf;
+  switch(buf->mtype) {
+  case SQ_LIGHT_ON :
+    if(buf->lightid < 0 || buf->lightid >= unused_light_server_id) {
+      printf("no such light %d\n", buf->lightid);
+    } else {
+      light_servers[buf->lightid].on_handler(buf->lightid, buf->clientid);
+    }
+    break;
+  case SQ_LIGHT_OFF :
+    if(buf->lightid < 0 || buf->lightid >= unused_light_server_id) {
+      printf("no such light %d\n", buf->lightid);
+    } else {
+      light_servers[buf->lightid].off_handler(buf->lightid, buf->clientid);
+    }
+    break;
+  case SQ_LIGHT_BRIGHTNESS :
+    if(buf->lightid < 0 || buf->lightid >= unused_light_server_id) {
+      printf("no such light %d\n", buf->lightid);
+    } else {
+      lbm_buf = (struct light_brightness_msg *) buf;
+      light_servers[lbm_buf->lightid].brightness_handler(lbm_buf->lightid, lbm_buf->clientid, lbm_buf->brightness);
+    }
+    break;
+  case SQ_LIGHT_RGB :
+    if(buf->lightid < 0 || buf->lightid >= unused_light_server_id) {
+      printf("no such light %d\n", buf->lightid);
+    } else {
+      lrm_buf = (struct light_rgb_msg *) buf;
+      light_servers[lrm_buf->lightid].rgb_handler(lrm_buf->lightid, lrm_buf->clientid,
+						  lrm_buf->r, lrm_buf->g, lrm_buf->b);
+    }
+    break;
+  case SQ_LIGHT_HSI :
+    if(buf->lightid < 0 || buf->lightid >= unused_light_server_id) {
+      printf("no such light %d\n", buf->lightid);
+    } else {
+      lhm_buf = (struct light_hsi_msg *) buf;
+      light_servers[lhm_buf->lightid].hsi_handler(lhm_buf->lightid, lhm_buf->clientid,
+						  lhm_buf->h, lhm_buf->s, lhm_buf->i);
+    }
+    break;
+  case SQ_DIE :
+    printf("Server-forced death.\nbllaaarrrrggghhh!!!\n");
+    lights_keep_running = 0;
+    break;
+  default :
+    printf("ignoring unknown message type %ld\n", buf->mtype);
+  }
+  return 1;
+}
+
+void squidlights_lights_cleanup(void) {
+  /* cleanup! cleanup! everybody do your share! */
+  printf("killing message queue\n");
+  
+  /* server will detect shutdown of queue */
+  if(msgctl(light_msqid, IPC_RMID, NULL) == -1) {
+    perror("msgctl");
+  }
 }
 
 void squidlights_light_run(void) {
   struct generic_msgbuf buf;
-  struct light_brightness_msg * lbm_buf;
 
   lights_keep_running = 1;
   
@@ -148,48 +224,35 @@ void squidlights_light_run(void) {
       printf("server disconnected?");
       lights_keep_running = 0;
     } else {
-      switch(buf.mtype) {
-      case SQ_LIGHT_ON :
-	if(buf.lightid < 0 || buf.lightid >= unused_light_server_id) {
-	  printf("no such light %d\n", buf.lightid);
-	} else {
-	  light_servers[buf.lightid].on_handler(buf.lightid, buf.clientid);
-	}
-	break;
-      case SQ_LIGHT_OFF :
-	if(buf.lightid < 0 || buf.lightid >= unused_light_server_id) {
-	  printf("no such light %d\n", buf.lightid);
-	} else {
-	  light_servers[buf.lightid].off_handler(buf.lightid, buf.clientid);
-	}
-	break;
-      case SQ_LIGHT_BRIGHTNESS :
-	if(buf.lightid < 0 || buf.lightid >= unused_light_server_id) {
-	  printf("no such light %d\n", buf.lightid);
-	} else {
-	  lbm_buf = (struct light_brightness_msg *) &buf;
-	  light_servers[lbm_buf->lightid].brightness_handler(lbm_buf->lightid, lbm_buf->clientid, lbm_buf->brightness);
-	}
-	break;
-      case SQ_LIGHT_RGB :
-	break;
-      case SQ_LIGHT_HSI :
-	break;
-      case SQ_DIE :
-	printf("Server-forced death.\nbllaaarrrrggghhh!!!\n");
-	lights_keep_running = 0;
-	break;
-      default :
-	printf("ignoring unknown message type %ld\n", buf.mtype);
-      }
+      squidlights_handle_msg_buf(&buf);
     }
   }
 
-  /* cleanup! cleanup! everybody do your share! */
-  printf("killing message queue\n");
-  
-  /* server will detect shutdown of queue */
-  if(msgctl(light_msqid, IPC_RMID, NULL) == -1) {
-    perror("msgctl");
+  squidlights_lights_cleanup();
+}
+
+int squidlights_lights_handle(void) {
+  struct generic_msgbuf buf;
+  struct msqid_ds msq;
+  int ret = msgctl(light_msqid, IPC_STAT, &msq);
+  while(ret != -1 && msq.msg_qnum > 0) {
+    if(!msgrcv(light_msqid, &buf, SIZEOF_MSG(struct generic_msgbuf), 0, IPC_NOWAIT)) {
+      perror("lights.c handle msgrcv");
+      return SQ_CONNECTION_ERROR;
+    }
+    squidlights_handle_msg_buf(&buf);
+    ret = msgctl(light_msqid, IPC_STAT, &msq);
   }
+  if(ret == -1) {
+    perror("lights.c handle msgctl");
+    printf("lights deciding to shut down message queue");
+    squidlights_lights_cleanup();
+    return -1;
+  }
+  if(!lights_keep_running) {
+    printf("lights deciding to shut down message queue");
+    squidlights_lights_cleanup();
+    return -1;
+  }
+  return 0;
 }
