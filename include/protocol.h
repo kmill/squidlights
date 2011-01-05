@@ -139,6 +139,11 @@ int squidlights_light_initialize(void);
    * if the name is taken, SQ_NAME_TAKEN is returned */
 int squidlights_light_connect(char* name);
 
+/* attaches extra data to a light */
+int squidlights_light_attach_data(int lightid, int extradata);
+/* get the attached data */
+int squidlights_light_attached_data(int lightid);
+
 /* gets the name of a light server by id.  Returns SQ_UNDEFINED_LIGHT
    if doesn't exist. */
 char* squidlights_light_getname(int lightid);

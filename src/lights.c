@@ -14,6 +14,7 @@
 
 struct light_server {
   char name[32];
+  int extra_data;
   void(*on_handler)(int lightid, int clientid);
   void(*off_handler)(int lightid, int clientid);
   void(*brightness_handler)(int lightid, int clientid, float brightness);
@@ -30,6 +31,7 @@ void default_on_handler(int lightid, int clientid) {
 }
 void default_off_handler(int lightid, int clientid) {
   /* does nothing */
+  printf("default\n");
 }
 void default_brightness_handler(int lightid, int clientid, float brightness) {
   /* by default, turns on/off based on brightness > 0.5 */
@@ -120,6 +122,15 @@ int squidlights_light_connect(char* name) {
   return lightid;
 }
 
+int squidlights_light_attach_data(int lightid, int extradata) {
+  light_servers[lightid].extra_data = extradata;
+  return 0;
+}
+
+int squidlights_light_attached_data(int lightid) {
+  return light_servers[lightid].extra_data;
+}
+
 /* make sure to not modify result */
 char* squidlights_light_getname(int lightid) {
   return light_servers[lightid].name;
@@ -146,6 +157,12 @@ int squidlights_light_add_hsi(int lightid, void(*new_hsi_handler)(int lightid, i
   return 0;
 }
 
+static float clamp(float x) {
+  if(x < 0) return 0;
+  if(x > 1) return 1;
+  return x;
+}
+
 static int squidlights_handle_msg_buf(struct generic_msgbuf * buf) {
   struct light_brightness_msg * lbm_buf;
   struct light_rgb_msg * lrm_buf;
@@ -170,7 +187,8 @@ static int squidlights_handle_msg_buf(struct generic_msgbuf * buf) {
       printf("no such light %d\n", buf->lightid);
     } else {
       lbm_buf = (struct light_brightness_msg *) buf;
-      light_servers[lbm_buf->lightid].brightness_handler(lbm_buf->lightid, lbm_buf->clientid, lbm_buf->brightness);
+      light_servers[lbm_buf->lightid].brightness_handler(lbm_buf->lightid, lbm_buf->clientid,
+							 clamp(lbm_buf->brightness));
     }
     break;
   case SQ_LIGHT_RGB :
@@ -179,7 +197,7 @@ static int squidlights_handle_msg_buf(struct generic_msgbuf * buf) {
     } else {
       lrm_buf = (struct light_rgb_msg *) buf;
       light_servers[lrm_buf->lightid].rgb_handler(lrm_buf->lightid, lrm_buf->clientid,
-						  lrm_buf->r, lrm_buf->g, lrm_buf->b);
+						  clamp(lrm_buf->r), clamp(lrm_buf->g), clamp(lrm_buf->b));
     }
     break;
   case SQ_LIGHT_HSI :
@@ -188,7 +206,7 @@ static int squidlights_handle_msg_buf(struct generic_msgbuf * buf) {
     } else {
       lhm_buf = (struct light_hsi_msg *) buf;
       light_servers[lhm_buf->lightid].hsi_handler(lhm_buf->lightid, lhm_buf->clientid,
-						  lhm_buf->h, lhm_buf->s, lhm_buf->i);
+						  clamp(lhm_buf->h), clamp(lhm_buf->s), clamp(lhm_buf->i));
     }
     break;
   case SQ_DIE :

@@ -80,6 +80,10 @@ void sqlight_send_data(t_sqlight *x) {
 }
 
 void sqlight_bang(t_sqlight *x) {
+  sqlight_send_data(x);
+}
+
+void sqlight_client_print_lights(t_sqlight *x) {
   post("Hello world \"%s\"!!", x->i_light->s_name);
   post("Lights:");
   for(int i = 0; i < NUM_LIGHT_SERVERS; i++) {
@@ -88,7 +92,6 @@ void sqlight_bang(t_sqlight *x) {
       post("%d. %s", i, lightname);
     }
   }
-  sqlight_send_data(x);
 }
 
 void sqlight_float(t_sqlight *x, t_floatarg f) {
@@ -160,6 +163,8 @@ void sqlight_connect(t_sqlight *x) {
     } else {
       x->i_connected = sqlight_reconnected_id;
       x->i_clientid = ret;
+      
+      sqlight_client_print_lights(x);
     }
   }
 }
@@ -239,6 +244,7 @@ void sqlight_setup(void) {
 			    CLASS_DEFAULT, A_DEFSYMBOL, A_DEFSYMBOL, 0);
   class_addbang(sqlight_class, sqlight_bang);
   class_addfloat(sqlight_class, sqlight_float);
+  class_addmethod(sqlight_class, (t_method)sqlight_client_print_lights, gensym("lights"), 0);
   class_addmethod(sqlight_class, (t_method)sqlight_client_on, gensym("on"), 0);
   class_addmethod(sqlight_class, (t_method)sqlight_client_off, gensym("off"), 0);
   class_addmethod(sqlight_class, (t_method)sqlight_client_switch, gensym("switch"), A_DEFFLOAT, 0);

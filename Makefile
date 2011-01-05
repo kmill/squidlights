@@ -8,10 +8,14 @@ all: lights clients server pd_client
 server: src/lights.o src/server.o
 	$(CC) $(LIBS) src/lights.o src/server.o -o build/server
 
-lights: src/lights.o testlight
+lights: src/lights.o testlight yeoldelights
 
 testlight: src/lights/testlight.o
 	$(CC) $(LIBS) src/lights.o src/lights/testlight.o -o build/lights/testlight
+
+yeoldelights: src/lights/yeoldelights.o src/lights/yeoldelights.conf
+	cp src/lights/yeoldelights.conf build/lights/yeoldelights.conf
+	$(CC) $(LIBS) src/lights.o src/lights/yeoldelights.o -o build/lights/yeoldelights
 
 clients: src/clients.o testclient
 
