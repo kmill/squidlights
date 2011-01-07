@@ -34,7 +34,7 @@ int squidlights_client_initialize(void) {
 
 static int client_add_light(struct light_init_msg * lim) {
   if(lim->msqid) {
-    printf("got light %d %s\n", lim->lightid, lim->name);
+    //    printf("got light %d %s\n", lim->lightid, lim->name);
   } else {
     printf("lost light %d\n", lim->lightid);
   }
@@ -69,21 +69,21 @@ int squidlights_client_connect(char* name) {
     light_servers[i].islight = 0;
   }
 
-  printf("waiting for server to send lights... "); fflush(stdout);
+  //  printf("waiting for server to send lights... "); fflush(stdout);
   if(msgrcv(client_msqid, &lim, SIZEOF_MSG(struct light_init_msg), 0, 0) == -1) {
     perror("clients.c, connect1 msgrcv");
     return SQ_CONNECTION_ERROR;
   }
-  printf(".");
+  //  printf(".");
   while(lim.lightid != -1) {
     client_add_light(&lim);
     if(msgrcv(client_msqid, &lim, SIZEOF_MSG(struct light_init_msg), 0, 0) == -1) {
       perror("clients.c, connect2 msgrcv");
       return SQ_CONNECTION_ERROR;
     }
-    printf(".");
+    //    printf(".");
   }
-  printf(" done\n");
+  //  printf(" done\n");
   return ++nextclientid;
 }
 

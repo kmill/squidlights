@@ -1,5 +1,5 @@
 #N canvas 385 347 450 300 10;
-#X obj 129 47 vsl 15 128 0 1 0 0 empty empty empty 0 -9 0 10 -262144
--1 -1 6500 1;
-#X obj 174 181 sqlight testlight_light1 bright;
+#X obj 136 36 vsl 15 128 0 1 0 0 empty empty empty 0 -9 0 10 -262144
+-1 -1 0 1;
+#X obj 174 181 sqlight yellow-back bright;
 #X connect 0 0 1 0;

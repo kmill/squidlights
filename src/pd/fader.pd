@@ -1,0 +1,24 @@
+#N canvas 319 337 450 300 10;
+#X obj 134 79 metro 33;
+#X obj 139 139 snapshot~;
+#X obj 142 206 sqlight red-center bright;
+#X msg 115 31 bang;
+#X msg 163 41 off;
+#X floatatom 159 181 5 0 0 0 - - -;
+#X obj 245 7 vsl 15 128 0 1 0 0 empty empty empty 0 -9 0 10 -262144
+-1 -1 4600 1;
+#X obj 101 140 + 1;
+#X obj 133 164 / 2;
+#X obj 103 189 *;
+#X obj 165 111 osc~;
+#X connect 0 0 1 0;
+#X connect 1 0 7 0;
+#X connect 3 0 0 0;
+#X connect 4 0 0 0;
+#X connect 6 0 10 0;
+#X connect 7 0 8 0;
+#X connect 8 0 5 0;
+#X connect 8 0 9 0;
+#X connect 8 0 9 1;
+#X connect 9 0 2 0;
+#X connect 10 0 1 0;

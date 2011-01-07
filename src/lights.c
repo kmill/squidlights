@@ -206,7 +206,7 @@ static int squidlights_handle_msg_buf(struct generic_msgbuf * buf) {
     } else {
       lhm_buf = (struct light_hsi_msg *) buf;
       light_servers[lhm_buf->lightid].hsi_handler(lhm_buf->lightid, lhm_buf->clientid,
-						  clamp(lhm_buf->h), clamp(lhm_buf->s), clamp(lhm_buf->i));
+						  lhm_buf->h, clamp(lhm_buf->s), clamp(lhm_buf->i));
     }
     break;
   case SQ_DIE :
