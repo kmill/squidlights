@@ -9,6 +9,7 @@
 #include <string.h>
 #include "lo/lo.h"
 #include <math.h>
+#include <sys/time.h>
 
 #define ELMO_UDP_PORT "2222"
 #define ELMO_COMMAND "/light/color/set"
@@ -16,7 +17,7 @@
 struct elmo_light_s {
   lo_address addr;
   int lightid;
-  float r, g, b;
+  float r, g, b, i; /* always have r+g+b=1, and i is coefficient */
 };
 
 static struct elmo_light_s elmo_lights[16];
@@ -27,8 +28,7 @@ int elmo_light_send(struct elmo_light_s * handle, float r, float g, float b);
 
 void elmo_brightness_handler(int lightid, int clientid, float brightness) {
   struct elmo_light_s * handle = &elmo_lights[squidlights_light_attached_data(lightid)];
-  elmo_light_send(handle,
-		  brightness*handle->r, brightness*handle->g, brightness*handle->b);
+  handle->i = brightness;
 }
 void elmo_on_handler(int lightid, int clientid) {
   elmo_brightness_handler(lightid, clientid, 1.0);
@@ -38,7 +38,6 @@ void elmo_off_handler(int lightid, int clientid) {
 }
 void elmo_rgb_handler(int lightid, int clientid, float r, float g, float b) {
   struct elmo_light_s * handle = &elmo_lights[squidlights_light_attached_data(lightid)];
-  elmo_light_send(handle, r, g, b);
   float sum = r+g+b;
   if(sum == 0) { /* if black, then reset to lovely purple */
     handle->r = 0.8;
@@ -49,6 +48,7 @@ void elmo_rgb_handler(int lightid, int clientid, float r, float g, float b) {
     handle->g = g/sum;
     handle->b = b/sum;
   }
+  handle->i = sum;
 }
 
 static inline float deg_to_rad(float d) {
@@ -56,7 +56,6 @@ static inline float deg_to_rad(float d) {
 }
 void elmo_hsi_handler(int lightid, int clientid, float h, float s, float i) {
   struct elmo_light_s * handle = &elmo_lights[squidlights_light_attached_data(lightid)];
-  printf(".");
   float r, g, b;
   h = fmod(h, 360.0);
   if(h < 120) {
@@ -77,7 +76,15 @@ void elmo_hsi_handler(int lightid, int clientid, float h, float s, float i) {
   handle->r = r;
   handle->g = g;
   handle->b = b;
-  elmo_light_send(handle, r*i, g*i, b*i);
+}
+
+int update_lights() {
+  for(int i = 0; i < next_handle; i++) {
+    struct elmo_light_s * handle = &elmo_lights[i];
+    float r = handle->r, g = handle->g, b = handle->b, i = handle->i;
+    elmo_light_send(handle, r*i, g*i, b*i);
+  }
+  return 0;
 }
 
 int initialize_elmo_light(char * address, char * name) {
@@ -88,6 +95,7 @@ int initialize_elmo_light(char * address, char * name) {
   handle->r = 0.8;
   handle->g = 0.0;
   handle->b = 0.2;
+  handle->i = 0.0;
 
   squidlights_light_add_on(handle->lightid, &elmo_on_handler);
   squidlights_light_add_off(handle->lightid, &elmo_off_handler);
@@ -105,9 +113,11 @@ int elmo_light_send(struct elmo_light_s * handle, float r, float g, float b) {
 int main(void) {
   squidlights_light_initialize();
 
-  int elmo0 = initialize_elmo_light("scheme.mit.edu", "elmo0");
+  int elmo0 = initialize_elmo_light("18.224.0.163", "elmo0"); // scheme.mit.edu
   if(elmo0 == SQ_CONNECTION_ERROR) exit(1);
-  elmo_light_send(&elmo_lights[elmo0], 1.0, 0.1, 0.9);
+  int elmo1 = initialize_elmo_light("18.224.0.168", "elmo1"); // haskell.mit.edu
+  if(elmo1 == SQ_CONNECTION_ERROR) exit(1);
+  //  elmo_light_send(&elmo_lights[elmo0], 1.0, 0.1, 0.9);
   //  squidlights_light_add_on(light0, &light0_on_handler);
   //  squidlights_light_add_off(light0, &light0_off_handler);
 
@@ -116,6 +126,17 @@ int main(void) {
   //  squidlights_light_add_on(light1, &light1_on_handler);
   //  squidlights_light_add_off(light1, &light1_off_handler);
   //  squidlights_light_add_brightness(light1, &light1_brightness_handler);
-  
-  squidlights_light_run();
+
+  squidlights_lights_handle_init();
+
+  struct timeval tv, tv2;
+  gettimeofday(&tv, NULL);
+  while(squidlights_lights_handle(1) != -1) {
+    gettimeofday(&tv2, NULL);
+    if(tv2.tv_sec>tv.tv_sec || tv2.tv_usec-tv.tv_usec >= 33000) {
+      update_lights();
+      tv = tv2;
+    }
+  }
+  squidlights_lights_cleanup();
 }

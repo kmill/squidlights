@@ -249,12 +249,17 @@ void squidlights_light_run(void) {
   squidlights_lights_cleanup();
 }
 
-int squidlights_lights_handle(void) {
+int squidlights_lights_handle_init(void) {
+  lights_keep_running = 1;
+  return 0;
+}
+
+int squidlights_lights_handle(char wait) {
   struct generic_msgbuf buf;
   struct msqid_ds msq;
   int ret = msgctl(light_msqid, IPC_STAT, &msq);
   while(ret != -1 && msq.msg_qnum > 0) {
-    if(!msgrcv(light_msqid, &buf, SIZEOF_MSG(struct generic_msgbuf), 0, IPC_NOWAIT)) {
+    if(!msgrcv(light_msqid, &buf, SIZEOF_MSG(struct generic_msgbuf), 0, wait?0:IPC_NOWAIT)) {
       perror("lights.c handle msgrcv");
       return SQ_CONNECTION_ERROR;
     }
@@ -263,12 +268,12 @@ int squidlights_lights_handle(void) {
   }
   if(ret == -1) {
     perror("lights.c handle msgctl");
-    printf("lights deciding to shut down message queue");
+    printf("lights deciding to shut down message queue (ret==-1)\n");
     squidlights_lights_cleanup();
     return -1;
   }
   if(!lights_keep_running) {
-    printf("lights deciding to shut down message queue");
+    printf("lights deciding to shut down message queue (because interrupt)\n");
     squidlights_lights_cleanup();
     return -1;
   }

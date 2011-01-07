@@ -161,8 +161,10 @@ int squidlights_light_add_hsi(int lightid, void(*hsi_handler)(int lightid, int c
 
 /* once set up, just runs the lights */
 void squidlights_light_run(void);
-/* or, do one iteration of light running. returns -1 if should quit */
-int squidlights_lights_handle(void);
+/* or, do one iteration of light running. returns -1 if should quit.  If wait is true, then do blocking call.  */
+int squidlights_lights_handle(char wait);
+/* initialize this thing. */
+int squidlights_lights_handle_init(void);
 /* and to cleanup when quitting if doing it by iteration */
 void squidlights_lights_cleanup(void);
 

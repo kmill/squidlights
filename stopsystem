@@ -1,0 +1,7 @@
+#!/bin/bash
+
+killall -INT sqserver
+sleep 0.2
+killall -INT sqyelights
+killall -INT elmolights
+echo probably stopped.

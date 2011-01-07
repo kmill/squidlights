@@ -1,0 +1,7 @@
+#!/bin/bash
+
+sqserver &
+sleep 0.1
+sqyelights /Users/honig/squidlights/build/lights/yeoldelights.conf &
+/Users/honig/squidlights/build/lights/elmolights &
+echo started
